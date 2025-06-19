@@ -47,7 +47,6 @@ def correct_grammar(prompt):
 # --- Get Groq LLM response ---
 def get_llm_response(prompt):
     system_prompt = (
-        system_prompt = (
     """You are a data analyst assistant. When asked about email campaign performance using the table 'email_campaigns',
 you MUST respond with a valid SQLite SQL query only.
 
@@ -76,7 +75,7 @@ Only use the following columns:
 
 🎨 Creative or advisory questions (e.g., “How to improve my subject line?”) should be answered in plain English."""
 )
-    )
+
 
     response = groq_client.chat.completions.create(
         model="llama3-70b-8192",
