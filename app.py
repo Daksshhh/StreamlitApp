@@ -1,3 +1,4 @@
+%%writefile app.py
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -9,7 +10,7 @@ conn = sqlite3.connect(':memory:')
 df.to_sql("email_campaigns", conn, index=False, if_exists='replace')
 
 # --- Setup Groq Client securely using secrets ---
-groq_client = Groq(api_key="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")
+groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 # --- Detect if LLM response contains SQL ---
 def is_sql_query(text):
@@ -29,15 +30,38 @@ def extract_sql_from_text(text):
         sql_query += ";"
     return sql_query
 
+def correct_grammar(prompt):
+    correction_prompt = (
+        f"Correct the grammar of this sentence without changing its meaning:\n\n'{prompt}'"
+    )
+
+    response = groq_client.chat.completions.create(
+        model="llama3-70b-8192",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant that fixes grammar errors in prompts."},
+            {"role": "user", "content": correction_prompt}
+        ]
+    )
+
+    return response.choices[0].message.content.strip()
+
 # --- Get Groq LLM response ---
 def get_llm_response(prompt):
     system_prompt = (
         "You are a smart assistant. When asked a question that requires data analysis of the 'email_campaigns' table, "
-        "respond ONLY with a valid and complete SQLite SQL query using columns: send_date, template_id, subject_line, "
-        "pre_header_text, email_body, emails_sent, emails_unsubscribed, emails_clicked, emails_opened, sender_info.\n\n"
-        "Important: Use float division for rates. For example, use SUM(emails_clicked) * 1.0 / SUM(emails_sent) instead of integer division. "
-        "Include SELECT and FROM and GROUP BY clauses where necessary. "
-        "If it's a general, creative, or open-ended question, respond in plain English. Do not return SQL and explanation together."
+    "respond ONLY with a valid and executable SQLite SQL query. Use only these columns:\n\n"
+    "send_date, template_id, subject_line, pre_header_text, email_body, emails_sent, "
+    "emails_unsubscribed, emails_clicked, emails_opened, sender_info\n\n"
+    "✅ Important rules:\n"
+    "- DO NOT leave commas dangling. Every SELECT must have properly formatted columns.\n"
+    "- DO NOT mix explanation and SQL. Just return pure SQL only.\n"
+    "- Always include SELECT and FROM clauses.\n"
+    "- Use float division for any rate calculations. For example:\n"
+    "  SUM(emails_clicked) * 1.0 / SUM(emails_sent) AS click_rate\n"
+    "- GROUP BY subject_line or template_id when comparing performance.\n"
+    "- Use ORDER BY DESC when showing best performing subject lines.\n\n"
+    "📌 If the question is creative or non-analytical (like 'suggest ideas' or 'how to write a better email'), respond in plain English instead of SQL.\n"
+    "Never respond with both SQL and explanation together."
     )
 
     response = groq_client.chat.completions.create(
@@ -102,7 +126,8 @@ user_input = st.text_input("Ask your question (e.g. campaign stats, advice, or t
 
 if user_input:
     with st.spinner("Thinking..."):
-        reply = get_llm_response(user_input)
+        corrected_input = correct_grammar(user_input)
+        reply = get_llm_response(corrected_input)
 
         if is_sql_query(reply):
             sql_query = extract_sql_from_text(reply)
