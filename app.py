@@ -10,7 +10,7 @@ conn = sqlite3.connect(':memory:')
 df.to_sql("email_campaigns", conn, index=False, if_exists='replace')
 
 # --- Setup Groq Client securely using secrets ---
-groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+groq_client = Groq(api_key="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")
 
 # --- Detect if LLM response contains SQL ---
 def is_sql_query(text):
